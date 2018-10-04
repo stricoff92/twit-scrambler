@@ -21,17 +21,9 @@ $ echo '{
 }' > creds.json
 ```
 
-Add dictionaries to TWITTER_ACCOUNTS list
-| dict key      | required      | desc.  |
-| ------------- |:-------------:| -----:|
-| handle        | yes           | (string) twitter user name |
-| mix_perc      | yes           | (float) % chance that a qualified word gets swapped out |
-| lookback      | no            | (int) max age in days for tweets |
-| tweets_to_mix | no            | (int) number of recent tweets to use for building out word pool to draw from |
-
 ```python
 
-# Set the twitter accounts to pull tweets from.
+# Target specific twitter accounts
 TWITTER_ACCOUNTS = [
     {'handle':'myTwitterHandle', 'lookback':14, 'tweets_to_mix':5, 'mix_perc':0.65}
 ]
