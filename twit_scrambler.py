@@ -1,6 +1,5 @@
 
 import datetime as dt
-import http.client, urllib
 import json
 import os
 import random
@@ -23,10 +22,10 @@ MIN_SWAP_WORD_LEN = 4
 TWEETS_TO_PULL = 50
 TWEET_CHAR_LIMIT = 279
 TWT_FIELDS = 'full_text'
-POST_TO_TWITTER = True
+POST_TO_TWITTER = False
 WORD = 0
 WTYPE = 1
-TARGET_TWEET_OVERRIDE = None #'The united states will build a wall betweet itself and Mexico. Mark my words!'
+TARGET_TWEET_OVERRIDE = 'So if African-American unemployment is now at the lowest number in history, median income the highest, and you then add all of the other things I have done, how do Democrats, who have done NOTHING for African-Americans but TALK, win the Black Vote?  And it will only get better!'
 
 
 # Set the twitter accounts to pull tweets from.
@@ -40,6 +39,7 @@ TYPES_TOSWAP = (
     'NN',   # Nouns
     'NNS',  # Plural Nouns
     'NNP',  # Proper Nouns
+    'NNPS', # Proper plural Nouns
     'JJ',   # Adjective
 )
 
@@ -67,16 +67,6 @@ def clean_word_array(word_array):
     # elements 0 through length-3 are the strings to search for
     forced_pairs = [
         ('united', 'states', 'United States', 'NNP'),
-        ('brett', 'kavanaugh', 'Brett Kavanaugh', 'NNP'),
-        ('mike', 'pense', 'Mike Pense', 'NNP'),
-        ('jeff', 'sessions', 'Jeff Sessions', 'NNP'),
-        ('donald', 'trump', 'Donald Trump', 'NNP'),
-        ('west', 'virginia', 'West Virginia', 'NNP'),
-        ('north', 'carolina', 'North Carolina', 'NNP'),
-        ('south', 'carolina', 'South Carolina', 'NNP'),
-        ('new', 'york', 'New York', 'NNP'),
-        ('new', 'jersey', 'New Jersey', 'NNP'),
-        ('new', 'mexico', 'New Mexico', 'NNP'),
     ]
 
     words = [w[WORD] for w in word_array]
@@ -84,13 +74,20 @@ def clean_word_array(word_array):
     
     for fixes in forced_pairs:
         if all(w in cleaned_words for w in fixes[:-2]):
+
+            # make sure the fix words are next to each other
+            # https://stackoverflow.com/questions/33575235/python-how-to-see-if-the-list-contains-consecutive-numbers
+            ixs = [cleaned_words.index(w) for w in fixes[:-2]]
+            if sorted(ixs) != list(range(min(ixs), max(ixs)+1)):
+                print(ixs, 'not consecutive skipping fix!')
+                continue
+
             print("FIXING", fixes)
             ix = cleaned_words.index(fixes[0])
-            word_array = [tup for tup in word_array if tup[WORD] not in fixes[:-2]]
+            word_array = [tup for tup in word_array if tup[WORD].lower() not in fixes[:-2]]
             word_array.insert(ix, tuple(fixes[-2:]))
     
     return word_array
-
 
 
 def build_mashed_tweet(target_tweet, mix, perc):
@@ -99,7 +96,6 @@ def build_mashed_tweet(target_tweet, mix, perc):
     print(target_tweet_parts)
     
     # create mashup_map of {word_type: available_worlds[]}
-    # {'NNP':['Avenatti', 'Putin'], ...}
     mix_tweet_parts = []
     for twt in mix:
         mix_tweet_parts += clean_word_array(nltk.pos_tag(nltk.word_tokenize(twt)))
