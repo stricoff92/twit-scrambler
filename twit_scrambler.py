@@ -25,7 +25,7 @@ TWT_FIELDS = 'full_text'
 POST_TO_TWITTER = False
 WORD = 0
 WTYPE = 1
-TARGET_TWEET_OVERRIDE = 'So if African-American unemployment is now at the lowest number in history, median income the highest, and you then add all of the other things I have done, how do Democrats, who have done NOTHING for African-Americans but TALK, win the Black Vote?  And it will only get better!'
+TARGET_TWEET_OVERRIDE = None
 
 
 # Set the twitter accounts to pull tweets from.
