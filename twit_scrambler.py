@@ -31,7 +31,7 @@ TARGET_TWEET_OVERRIDE = None #'The united states will build a wall betweet itsel
 
 # Set the twitter accounts to pull tweets from.
 TWITTER_ACCOUNTS = [
-    {'handle':'realDonaldTrump', 'lookback':14, 'tweets_to_mix':5, 'mix_perc':0.5}
+    {'handle':'realDonaldTrump', 'lookback':14, 'tweets_to_mix':10, 'mix_perc':0.5}
 ]
 
 TYPES_TOSWAP = (
@@ -78,7 +78,7 @@ def clean_word_array(word_array):
         ('new', 'jersey', 'New Jersey', 'NNP'),
         ('new', 'mexico', 'New Mexico', 'NNP'),
     ]
-    
+
     words = [w[WORD] for w in word_array]
     cleaned_words = [w[WORD].lower().replace(' ', '') for w in word_array]
     
