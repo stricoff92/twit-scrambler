@@ -16,18 +16,20 @@ PATH = os.path.dirname(os.path.realpath(__file__))
 URL_PATT = re.compile(r'http(s)?:\/\/(\w|\.|\/|\?)+')
 DATA_FILE_NAMING_CONV = PATH + '/%s_data.txt'
 DEFAULT_LOOKBACK = 14
-DEFAULT_TWEETS_TO_MIX = 8
+DEFAULT_TWEETS_TO_MIX = 10
 MIN_WORDS = 10
+MIN_SWAP_WORD_LEN = 3
 TWEETS_TO_PULL = 50
 TWT_FIELDS = 'full_text'
 POST_TO_TWITTER = False
 WORD = 0
 WTYPE = 1
+TARGET_TWEET_OVERRIDE = None
 
 
 # Set the twitter accounts to pull tweets from.
 TWITTER_ACCOUNTS = [
-    {'handle':'realDonaldTrump', 'lookback':14, 'tweets_to_mix':5, 'mix_perc':0.45}
+    {'handle':'realDonaldTrump', 'lookback':14, 'tweets_to_mix':5, 'mix_perc':0.65}
 ]
 
 TYPES_TOSWAP = (
@@ -39,8 +41,8 @@ TYPES_TOSWAP = (
 )
 
 SWAP_BLACK_LIST = (
-    '@', 'of', 'in', 'at', 't', 'doesn', 'can', '-', ':', '?', '[', '}',
-    'be', 'do', ',', '.'
+    '@', 'of', 'in', 'at', 't', 'doesn', 'can', '-', ':', '?', '[', ']', '{', '}',
+    'be', 'do', ',', '.', '"', '\'', '`'
 )
 
 def skip_word(word):
@@ -63,24 +65,32 @@ def build_mashed_tweet(target_tweet, mix, perc):
         mix_tweet_parts += nltk.pos_tag(nltk.word_tokenize(twt))
     mashup_map = {}
     for word in mix_tweet_parts:
-        if word[WORD].lower() in SWAP_BLACK_LIST:
+        if word[WORD].lower() in SWAP_BLACK_LIST or len(word[WORD]) <= MIN_SWAP_WORD_LEN:
             continue
+        
         if word[WTYPE] in mashup_map and mashup_map[word[WTYPE]].count(word[WORD]) == 0:
             mashup_map[word[WTYPE]].append(word[WORD])
-        else:
+        elif word[WTYPE] not in mashup_map:
             mashup_map[word[WTYPE]] = [word[WORD]]
+    
     print(mashup_map)
     
-    # Create new Tweet.
+    # Create new Tweet
     mashed_tweet = []
     for ix, word in enumerate(target_tweet_parts):
         if (ix and word[WTYPE] in TYPES_TOSWAP 
+                and len(word[WTYPE]) >= MIN_SWAP_WORD_LEN
                 and word[WTYPE] in mashup_map 
                 and not skip_word(word[WORD])
                 and random.random() <= perc):
             # Swap out this word
-            mashed_tweet.append(random.choice(mashup_map[word[WTYPE]]))
-            print('swaping "%s" with "%s"' % (word, mashed_tweet[-1]))
+            if len(mashup_map[word[WTYPE]]):
+                rand_word = mashup_map[word[WTYPE]].pop(random.randint(0, len(mashup_map[word[WTYPE]])-1))
+                mashed_tweet.append(rand_word)
+                print('swaping "%s" with "%s"' % (word, rand_word))
+            else:
+                print("skipping swap of", word)
+                mashed_tweet.append(word[WORD])
         else:
             print("skipping swap of", word)
             mashed_tweet.append(word[WORD])
