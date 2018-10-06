@@ -1,4 +1,5 @@
 
+from copy import deepcopy
 import datetime as dt
 import http.client, urllib
 import json
@@ -125,6 +126,8 @@ def clean_word_array(word_array):
         ('new', 'jersey', 'New Jersey', 'NNP'),
         ('new', 'mexico', 'New Mexico', 'NNP'),
         ('nancy', 'pelosi', 'Nancy Pelosi', 'NNP'),
+        ('bob', 'meuller', 'Bob Meuller', 'NNP'),
+        ('robert', 'meuller', 'Robert Meuller', 'NNP'),
     ]
 
     words = [w[WORD] for w in word_array]
@@ -257,24 +260,7 @@ def main(twit, api):
 
     # Select a tweet to use (most recent)
     target_tweet = resp.pop(0) if not TEST_MODE else resp.pop(random.randint(0, len(resp)-1))
-
-    # Select older tweets to mix in with new tweet
-    mix_tweet = []
-    for i in range(twit['tweets_to_mix']):
-        if len(resp) > 0:
-            max_ix = len(resp)-1
-            mix_tweet.append(resp.pop(random.randint(0, max_ix)))
-        else:
-            break
-    if not len(mix_tweet):
-        print('mix_tweet is empty')
-        return
-
-
     print('using this tweet:\n', repr(target_tweet[TWT_FIELDS]))
-    print('\n\ntweets to mix in:', '\n'.join(repr(r[TWT_FIELDS]) for r in mix_tweet))
-
-    
 
     # Generate new tweets
     def truncate(string):
@@ -287,6 +273,21 @@ def main(twit, api):
     print("op_tweet_uid", op_tweet_uid)
     new_tweets = []
     for i in range(TWEET_ITERATIONS):
+
+        mix_tweet = []
+        tweet_pool = deepcopy(resp)
+        for i in range(twit['tweets_to_mix']):
+            if len(tweet_pool) > 0:
+                max_ix = len(tweet_pool)-1
+                mix_tweet.append(tweet_pool.pop(random.randint(0, max_ix)))
+            else:
+                break
+        
+        if len(mix_tweet) < 1:
+            print("mix_tweet is empty")
+            return
+
+
         new_tweet = build_mashed_tweet(TARGET_TWEET_OVERRIDE or target_tweet[TWT_FIELDS], 
                                         [t[TWT_FIELDS] for t in mix_tweet], twit['mix_perc'])
         if new_tweet:
