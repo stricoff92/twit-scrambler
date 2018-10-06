@@ -78,7 +78,7 @@ def init_db(c, conn):
 def send_alert(message, uid):
     if not pushover_creds:
         return
-    print(f'sending alert: {message}')
+    print('sending alert:', message)
     conn = http.client.HTTPSConnection("api.pushover.net:443")
 
     print('TEST_MODE', TEST_MODE)
