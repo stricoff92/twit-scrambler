@@ -64,6 +64,17 @@ HTML_SWAPS = {
 }
 
 
+def init_db(c, conn):
+    sql = '''CREATE TABLE IF NOT EXISTS "tweets" (
+                `uid`	TEXT NOT NULL,
+                `original_tweet_uid`	TEXT NOT NULL,
+                `full_text`	TEXT NOT NULL,
+                PRIMARY KEY(uid)
+            )'''
+    c.execute(sql)
+    conn.commit()
+
+
 def send_alert(message, uid):
     if not pushover_creds:
         return
@@ -293,6 +304,7 @@ def main(twit, api):
     from app import db_connect
     c, conn = db_connect()
     try:
+        init_db(c, conn)
         for t in new_tweets:
             c.execute('INSERT INTO tweets (uid, original_tweet_uid, full_text) VALUES (?,?,?)', (t['uid'], t['original_tweet_uid'], t['full_text']))
         conn.commit()

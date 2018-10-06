@@ -1,18 +1,18 @@
 # twit-scrambler
 
-### A Twitter bot that randomly scrambles a user's tweet.
+### A Twitter bot that randomly scrambles and reposts a users' tweets
 
-## How it works
+![](flow.png)
 
-1) A user's most recent tweet is selected and parsed with natural language tool kit.
-2) A random selection of recent tweets are selected and parsed with natural language tool kit.
-3) A random selection of verbs, verbs ending in "ing", nouns, plural nouns, and proper nouns from the target tweet are swapped out with corresponding word types from the pool of words from the recent tweets.
-4) The mashed up tweet is posted.
+# Setup
 
-## Setup
-Create creds.json
+Install Python Dependancies
 ```bash
-$ cd twit-scrambler
+$ pip install -r requirements.txt
+```
+
+Configure Twitter Creds
+```bash
 $ echo '{
     "consumer_key": "YOUR_TWITTER_CONSUMER_KEY",
     "consumer_secret": "YOUR_TWITTER_CONSUMER_SECRET_KEY",
@@ -21,16 +21,42 @@ $ echo '{
 }' > creds.json
 ```
 
-```python
-
-# Target specific twitter accounts
-TWITTER_ACCOUNTS = [
-    {'handle':'myTwitterHandle', 'lookback':14, 'tweets_to_mix':5, 'mix_perc':0.65}
-]
-```
-
-## Run script
+Configure Tweet Sources
 ```bash
-$ python twit_scrambler.py
+$ echo '[
+    {"handle":"myTwitterHandle", "lookback":14, "tweets_to_mix":5, "mix_perc":0.65}
+]' > twitter_accounts.json
 ```
 
+Configure Flask Settings
+```bash
+$ echo '{
+    "sqlite":"tweets.db",
+    "port":8888,
+    "host":"http://myhost.net:8888",
+    "test_host":"http://127.0.0.1:8888"
+}' > web_config.json
+```
+
+Configure Pushover Settings
+```bash
+$ echo '{
+    "user_key":"YOUR_PUSHOVER_USER_KEY",
+    "application_key":"YOUR_PUSHOVER_APPLICATION_KEY"
+}' > pushover_creds.json
+```
+
+### Schedule Tweet Retrieval
+Open cron
+```bash
+$ crontab -e
+```
+Add A New Job. Example Would Check For New Tweets At 5 Minute Intervals. Be Mindful Of Rate Limits.
+```
+*/5 * * * * cd ~/twit-scrambler/ && python3.6 twit_scrambler.py >> twitterout.log
+```
+
+### Launch Flask Application
+```bash
+$ nohup sudo python app.py & disown
+```
