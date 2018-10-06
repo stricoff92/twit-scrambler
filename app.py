@@ -10,7 +10,7 @@ import twitter
 
 app = Flask(__name__)
 PATH = os.path.dirname(os.path.realpath(__file__))
-TEST_MODE = True
+TEST_MODE = False
 
 # Match UUID4
 UUID_PATT = re.compile(r'^[a-z0-9]{8}-([a-z0-9]{4}-){3}[a-z0-9]{12}$')

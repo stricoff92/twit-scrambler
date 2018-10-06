@@ -14,7 +14,7 @@ nltk.download('averaged_perceptron_tagger')
 
 import twitter
 
-TEST_MODE = True
+TEST_MODE = False
 
 
 PATH = os.path.dirname(os.path.realpath(__file__))
