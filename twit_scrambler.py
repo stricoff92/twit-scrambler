@@ -214,7 +214,7 @@ def build_mashed_tweet(target_tweet, mix, perc):
         if search in mashed_tweet_str:
             mashed_tweet_str = mashed_tweet_str.replace(search, repl)
     
-    return twit['handle'] + ': ' + mashed_tweet_str
+    return twit.get('alias', twit['handle']) + ': ' + mashed_tweet_str
 
 
 def main(twit, api):
