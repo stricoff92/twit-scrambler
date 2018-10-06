@@ -1,9 +1,14 @@
+# Byte-compiled / optimized / DLL files
+
 
 creds.json
+pushover_creds.json
+web_config.json
+twitter_accounts.json
 *.txt
-*.ipynb
+!requirements.txt
+*.db
 
-# Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
 *$py.class

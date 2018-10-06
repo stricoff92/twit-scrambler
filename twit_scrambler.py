@@ -1,15 +1,20 @@
 
 import datetime as dt
+import http.client, urllib
 import json
 import os
 import random
 import re
+import time
+from uuid import uuid4
 
 import nltk
 nltk.download('punkt')
 nltk.download('averaged_perceptron_tagger')
 
 import twitter
+
+TEST_MODE = True
 
 
 PATH = os.path.dirname(os.path.realpath(__file__))
@@ -19,19 +24,21 @@ DEFAULT_LOOKBACK = 14
 DEFAULT_TWEETS_TO_MIX = 10
 MIN_WORDS = 10
 MIN_SWAP_WORD_LEN = 4
-TWEETS_TO_PULL = 50
+MIN_SWAPS_TO_MAKE = 2
+TWEETS_TO_PULL = 100
 TWEET_CHAR_LIMIT = 279
 TWT_FIELDS = 'full_text'
-POST_TO_TWITTER = False
 WORD = 0
 WTYPE = 1
 TARGET_TWEET_OVERRIDE = None
+MIN_SWAP_PERCENT = 0.15
+TWEET_ITERATIONS = 3
 
 
 # Set the twitter accounts to pull tweets from.
-TWITTER_ACCOUNTS = [
-    {'handle':'realDonaldTrump', 'lookback':14, 'tweets_to_mix':10, 'mix_perc':0.5}
-]
+with open(PATH+'/twitter_accounts.json') as f:
+    TWITTER_ACCOUNTS = json.load(f)
+
 
 TYPES_TOSWAP = (
     'VB',   # Verbs
@@ -47,6 +54,34 @@ SWAP_BLACK_LIST = (
     '@', 'of', 'in', 'at', 't', 'doesn', 'can', '-', ':', '?', '[', ']', '{', '}',
     'be', 'do', ',', '.', '"', '\'', '`', 'great'
 )
+
+HTML_SWAPS = {
+      '&gt;': '>',
+      '&lt;': '<',
+      '&apos;': "'",
+      '&quot;': '"',
+      '&amp;': '&'
+}
+
+
+def send_alert(message, uid):
+    if not pushover_creds:
+        return
+    print(f'sending alert: {message}')
+    conn = http.client.HTTPSConnection("api.pushover.net:443")
+
+    print('TEST_MODE', TEST_MODE)
+
+    url = (web_config['test_host'] if TEST_MODE else web_config['host']) +"/posttweet?uid="+uid
+
+    print(conn.request("POST", "/1/messages.json",
+        urllib.parse.urlencode({
+            "token":pushover_creds['application_key'],
+            "user":pushover_creds['user_key'],
+            "message": message,
+            "url":url,
+            "url_title":"post to twitter"
+        }), { "Content-type": "application/x-www-form-urlencoded" }))
 
 
 def skip_word(word):
@@ -67,6 +102,18 @@ def clean_word_array(word_array):
     # elements 0 through length-3 are the strings to search for
     forced_pairs = [
         ('united', 'states', 'United States', 'NNP'),
+        ('brett', 'kavanaugh', 'Brett Kavanaugh', 'NNP'),
+        ('judge', 'kavanaugh', 'Judge Kavanaugh', 'NNP'),
+        ('mike', 'pense', 'Mike Pense', 'NNP'),
+        ('jeff', 'sessions', 'Jeff Sessions', 'NNP'),
+        ('donald', 'trump', 'Donald Trump', 'NNP'),
+        ('west', 'virginia', 'West Virginia', 'NNP'),
+        ('north', 'carolina', 'North Carolina', 'NNP'),
+        ('south', 'carolina', 'South Carolina', 'NNP'),
+        ('new', 'york', 'New York', 'NNP'),
+        ('new', 'jersey', 'New Jersey', 'NNP'),
+        ('new', 'mexico', 'New Mexico', 'NNP'),
+        ('nancy', 'pelosi', 'Nancy Pelosi', 'NNP'),
     ]
 
     words = [w[WORD] for w in word_array]
@@ -100,8 +147,10 @@ def build_mashed_tweet(target_tweet, mix, perc):
     for twt in mix:
         mix_tweet_parts += clean_word_array(nltk.pos_tag(nltk.word_tokenize(twt)))
     mashup_map = {}
+    mix_tweet_parts = [word for word in mix_tweet_parts if not word[WORD].endswith('..')]
+
     for word in mix_tweet_parts:
-        if word[WORD].lower() in SWAP_BLACK_LIST or len(word[WORD]) <= MIN_SWAP_WORD_LEN:
+        if word[WORD].lower() in SWAP_BLACK_LIST or len(word[WORD]) < MIN_SWAP_WORD_LEN:
             continue
         
         if word[WTYPE] in mashup_map and mashup_map[word[WTYPE]].count(word[WORD]) == 0:
@@ -133,34 +182,52 @@ def build_mashed_tweet(target_tweet, mix, perc):
             print("skipping swap of", word)
             mashed_tweet.append(word[WORD])
     
-    mashed_tweet_str = '"' + ' '.join(mashed_tweet) +'"\n\n-'+twit['handle']+' (sort of)'
+    mashed_tweet_str = ' '.join(mashed_tweet)
     mashed_tweet_str = mashed_tweet_str.replace(' , ', ', ')\
                                         .replace(' . ', '. ')\
                                         .replace(' ’ ', '’')\
                                         .replace(' \' ', '\'')\
                                         .replace(' !', '!')
     print('swaps_performed', swaps_performed)
-    return mashed_tweet_str
 
+    if swaps_performed < MIN_SWAPS_TO_MAKE:
+        print("Not enough swaps performed (count), SKIPPING THIS TWEET", swaps_performed)
+        return None
     
+    if (swaps_performed / len(target_tweet_parts)) < MIN_SWAP_PERCENT:
+        print("Not enough swaps performed (%), SKIPPING THIS TWEET", (swaps_performed / len(target_tweet_parts)))
+        return None 
+    
+    # remove encoded HTML chars 
+    for search, repl in HTML_SWAPS.items():
+        if search in mashed_tweet_str:
+            mashed_tweet_str = mashed_tweet_str.replace(search, repl)
+    
+    return twit['handle'] + ': ' + mashed_tweet_str
 
 
 def main(twit, api):
 
-    # Build Query String
-    qs = "q=from%3A{0}&result_type=recent&since={1}&count={2}&tweet_mode=extended".format(
-        twit['handle'],
-        (dt.date.today()-dt.timedelta(days=twit.get('lookback', DEFAULT_LOOKBACK))).strftime('%Y-%m-%d'),
-        TWEETS_TO_PULL
-    )
+    print('----------', twit['handle'], '-----------')
 
     # Download Tweets
-    results = [r.AsDict() for r in api.GetSearch(raw_query=qs)]
+    resp = api.GetUserTimeline(
+        screen_name=twit['handle'],
+        count=TWEETS_TO_PULL,
+        include_rts=False,
+        exclude_replies=True,
+        trim_user=True
+    )
+    resp = [r.AsDict() for r in resp]
+    print("got back", len(resp), "tweets")
+    print("most recent tweet", repr(resp[0][TWT_FIELDS]))
 
-    # clean tweets (they're filthy)
-    for ix, twt in enumerate(results):
-        results[ix][TWT_FIELDS] = URL_PATT.sub('', twt[TWT_FIELDS])
-    results = [r for r in results if len(r[TWT_FIELDS].split(' ')) >= MIN_WORDS]
+    # Remove URLs, remove tweets that are too short
+    for ix, twt in enumerate(resp):
+        resp[ix][TWT_FIELDS] = URL_PATT.sub('', twt[TWT_FIELDS]).strip()
+    resp = [r for r in resp if len(r[TWT_FIELDS].split(' ')) >= MIN_WORDS]
+
+    print("most recent CLEANED tweet", repr(resp[0][TWT_FIELDS]))
 
     # Get tweet IDs we've already used
     try:
@@ -168,63 +235,114 @@ def main(twit, api):
             used_tweets = f.read().split('\n')
     except IOError:
         used_tweets = []
+
     
-    if results[0]['id_str'] in used_tweets:
+    if not TEST_MODE and resp[0]['id_str'] in used_tweets:
         print("already used this tweet! BYE!")
         return
+    else:
+        print("\n NEW TWEET FOUND! -_- oh god \n")
     
 
-    # Remove Tweets we've already used
-    new_results = [r for r in results if r['id_str'] not in used_tweets]
-    if len(new_results) == 0:
-        print("no new tweets")
+    # Select a tweet to use (most recent)
+    target_tweet = resp.pop(0) if not TEST_MODE else resp.pop(random.randint(0, len(resp)-1))
+
+    # Select older tweets to mix in with new tweet
+    mix_tweet = []
+    for i in range(twit['tweets_to_mix']):
+        if len(resp) > 0:
+            max_ix = len(resp)-1
+            mix_tweet.append(resp.pop(random.randint(0, max_ix)))
+        else:
+            break
+    if not len(mix_tweet):
+        print('mix_tweet is empty')
         return
 
 
-    # Select a tweet to use (most recent)
-    target_tweet = new_results.pop(0)
+    print('using this tweet:\n', repr(target_tweet[TWT_FIELDS]))
+    print('\n\ntweets to mix in:', '\n'.join(repr(r[TWT_FIELDS]) for r in mix_tweet))
 
-    # Select older tweets to mix in with new tweet
-    results = [r for r in results if r['id_str'] != target_tweet['id_str']]
-    mix_tweet = random.choices(results, k=twit.get('tweets_to_mix', DEFAULT_TWEETS_TO_MIX))
+    
 
-    print('using this tweet:\n', target_tweet[TWT_FIELDS])
-    print('\ntweets to mix in:', '\n'.join(r[TWT_FIELDS] for r in mix_tweet))
-
-    # Generate new tweet 
-    new_tweet = build_mashed_tweet(TARGET_TWEET_OVERRIDE or target_tweet[TWT_FIELDS], 
-                                    [t[TWT_FIELDS] for t in mix_tweet], twit['mix_perc'])
-    print('new mashed tweet\n', new_tweet)
-
-
-    # Post Tweet to Twitter
+    # Generate new tweets
     def truncate(string):
         if len(string) <= TWEET_CHAR_LIMIT:
             return string
         else:
             return string[0:TWEET_CHAR_LIMIT-2] + '..'
-    if POST_TO_TWITTER:
-        api.PostUpdate(status=truncate(new_tweet))
 
-        # Update txt file with target tweet ID
+    op_tweet_uid = str(uuid4())
+    print("op_tweet_uid", op_tweet_uid)
+    new_tweets = []
+    for i in range(TWEET_ITERATIONS):
+        new_tweet = build_mashed_tweet(TARGET_TWEET_OVERRIDE or target_tweet[TWT_FIELDS], 
+                                        [t[TWT_FIELDS] for t in mix_tweet], twit['mix_perc'])
+        if new_tweet:
+            new_tweets.append({
+                "full_text":truncate(new_tweet),
+                "original_tweet_uid": op_tweet_uid,
+                "uid":str(uuid4())
+            })
+    
+    if len(new_tweets) < 1:
+        print("No acceptable mashed tweets :/")
+        return
+    
+    # send new tweets to database
+    from app import db_connect
+    c, conn = db_connect()
+    try:
+        for t in new_tweets:
+            c.execute('INSERT INTO tweets (uid, original_tweet_uid, full_text) VALUES (?,?,?)', (t['uid'], t['original_tweet_uid'], t['full_text']))
+        conn.commit()
+    except Exception as e:
+        print("error inserting into DB", e)
+    finally:
+        c.close()
+        conn.close()
+    
+
+    # send pushover alerts
+    for t in new_tweets:
+        send_alert(t['full_text'], t['uid'])
+    
+
+    # Update txt file with target tweet ID
+    if not TEST_MODE:
+        print("updating", DATA_FILE_NAMING_CONV % twit['handle'])
         used_tweets.insert(0, target_tweet['id_str'])
-        used_tweets[0:500]
+        used_tweets = used_tweets[0:500]
         with open(DATA_FILE_NAMING_CONV % twit['handle'], 'w') as f:
             for tid in used_tweets:
-                f.write(tid+'\n')
+                if tid:
+                    f.write(tid+'\n')
     
+
+
 
 if __name__ == '__main__':
     
     with open(PATH+'/creds.json') as f:
         creds = json.load(f)
 
-    api = twitter.Api(consumer_key=creds['consumer_key'],
-                        consumer_secret=creds['consumer_secret'],
-                        access_token_key=creds['access_token_key'],
-                        access_token_secret=creds['access_token_secret'])
+    try:
+        with open(PATH+'/pushover_creds.json') as f:
+            pushover_creds = json.load(f)
+    except IOError as e:
+        print("No pushover creds found", e)
+        pushover_creds = None
+    
+    with open(PATH+'/web_config.json') as f:
+        web_config = json.load(f)
+
+    
+    # Construct API wrapper and authenticate
+    creds['tweet_mode'] = 'extended'
+    api = twitter.Api(**creds)
     if not api.VerifyCredentials():
         raise Exception("Could not verify twitter api credentials")
 
     for twit in TWITTER_ACCOUNTS:
         main(twit, api)
+        time.sleep(2)
