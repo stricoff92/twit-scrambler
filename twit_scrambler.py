@@ -151,7 +151,7 @@ def clean_word_array(word_array):
     return word_array
 
 
-def build_mashed_tweet(target_tweet, mix, perc):
+def build_mashed_tweet(target_tweet, mix, twit):
     # given a tweet and a mixed bag of words, mash up the tweet
     target_tweet_parts = clean_word_array(nltk.pos_tag(nltk.word_tokenize(target_tweet)))
     print(target_tweet_parts)
@@ -182,7 +182,7 @@ def build_mashed_tweet(target_tweet, mix, perc):
                 and len(word[WORD]) >= MIN_SWAP_WORD_LEN
                 and word[WTYPE] in mashup_map 
                 and not skip_word(word[WORD])
-                and random.random() <= perc):
+                and random.random() <= twit['perc']):
             # Swap out this word
             if len(mashup_map[word[WTYPE]]):
                 rand_word = mashup_map[word[WTYPE]].pop(random.randint(0, len(mashup_map[word[WTYPE]])-1))
@@ -289,7 +289,7 @@ def main(twit, api):
 
 
         new_tweet = build_mashed_tweet(TARGET_TWEET_OVERRIDE or target_tweet[TWT_FIELDS], 
-                                        [t[TWT_FIELDS] for t in mix_tweet], twit['mix_perc'])
+                                        [t[TWT_FIELDS] for t in mix_tweet], twit)
         if new_tweet:
             new_tweets.append({
                 "full_text":truncate(new_tweet),
