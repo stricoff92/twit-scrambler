@@ -182,7 +182,7 @@ def build_mashed_tweet(target_tweet, mix, twit):
                 and len(word[WORD]) >= MIN_SWAP_WORD_LEN
                 and word[WTYPE] in mashup_map 
                 and not skip_word(word[WORD])
-                and random.random() <= twit['perc']):
+                and random.random() <= twit['mix_perc']):
             # Swap out this word
             if len(mashup_map[word[WTYPE]]):
                 rand_word = mashup_map[word[WTYPE]].pop(random.randint(0, len(mashup_map[word[WTYPE]])-1))
