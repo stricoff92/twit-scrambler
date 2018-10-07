@@ -311,6 +311,7 @@ def main(twit, api):
         conn.commit()
     except Exception as e:
         print("error inserting into DB", e)
+        raise
     finally:
         c.close()
         conn.close()
@@ -336,16 +337,15 @@ def main(twit, api):
 
 if __name__ == '__main__':
     
+    # Twitter Creds
     with open(PATH+'/creds.json') as f:
         creds = json.load(f)
 
-    try:
-        with open(PATH+'/pushover_creds.json') as f:
-            pushover_creds = json.load(f)
-    except IOError as e:
-        print("No pushover creds found", e)
-        pushover_creds = None
-    
+    # Pushover Creds
+    with open(PATH+'/pushover_creds.json') as f:
+        pushover_creds = json.load(f)
+
+    # Flask Config
     with open(PATH+'/web_config.json') as f:
         web_config = json.load(f)
 
