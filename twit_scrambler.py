@@ -357,5 +357,8 @@ if __name__ == '__main__':
         raise Exception("Could not verify twitter api credentials")
 
     for twit in TWITTER_ACCOUNTS:
-        main(twit, api)
+        try:
+            main(twit, api)
+        except Exception as e:
+            send_alert('ERROR'+str(e), 'nouid')
         time.sleep(2)
